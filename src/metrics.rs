@@ -1,5 +1,4 @@
 use ndarray::prelude::*;
-use ndarray_rand::rand_distr::num_traits::Float;
 
 #[derive(Debug)]
 pub struct DistanceMetrics {

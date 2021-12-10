@@ -4,19 +4,6 @@ mod nn;
 use ndarray::prelude::*;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
-use std::fmt;
-use std::fmt::Formatter;
-
-struct TrainingSet {
-    x: ndarray::Array2<i32>,
-    y: ndarray::Array1<i32>,
-}
-
-impl fmt::Debug for TrainingSet {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "x: {:?}\ny: {:?}", self.x, self.y)
-    }
-}
 
 fn main() {
     sin();
@@ -24,9 +11,6 @@ fn main() {
 
 #[allow(dead_code)]
 fn xor() {
-    // let x: Array2<f64> = arr2(&[[0., 0.], [0., 1.], [1., 0.], [1., 1.]]);
-    // let y = array![[0.], [1.], [1.], [0.]];
-
     let x: Array2<f64> = arr2(&[[0., 0., 1., 1.], [0., 1., 0., 1.]]);
     let y = array![[0., 1., 1., 0.]];
 
@@ -42,7 +26,7 @@ fn xor() {
 
     let xor_test_input = arr2(&[[1.], [1.]]);
     let xor_predict_test = test_mlp.predict(&xor_test_input.view());
-    println!("Test output: {}", &xor_predict_test);
+    println!("Test error: {}", &xor_predict_test);
 }
 
 fn sin() {
@@ -55,12 +39,22 @@ fn sin() {
 
     let (x_train, x_test, y_train, y_test) = generate_for_sin(500, 100);
 
-    mlp.fit(&x_train.view(), &y_train.map(squash_sin).view(), 0.1, 500);
+    let training_y_hat = mlp
+        .fit(&x_train.view(), &y_train.map(squash_sin).view(), 0.1, 500)
+        .unwrap()
+        .map(unsquash_sin);
 
-    let y_hat = mlp.predict(&x_test.view()).map(unsquash_sin);
+    // Compute the error for the training set.
+    let training_metrics =
+        metrics::DistanceMetrics::generate_metrics(&y_train.view(), &training_y_hat.view());
+    println!("\nTraining Set Error:\n{:#?}", &training_metrics);
 
-    let metrics = metrics::DistanceMetrics::generate_metrics(&y_test.view(), &y_hat.view());
-    println!("\n{:#?}", &metrics);
+    let test_y_hat = mlp.predict(&x_test.view()).map(unsquash_sin);
+
+    // Compute the error for the training set.
+    let test_training_metrics =
+        metrics::DistanceMetrics::generate_metrics(&y_test.view(), &test_y_hat.view());
+    println!("\nTest Set Error:\n{:#?}", &test_training_metrics);
 }
 
 fn generate_for_sin(

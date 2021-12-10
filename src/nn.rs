@@ -99,6 +99,7 @@ impl NeuralNetwork {
             self.update_parameters(gradients, learning_rate);
             out = Some(y_hat);
         }
+        pb.finish_println("Finished training.\n");
         out
     }
 

@@ -1,10 +1,12 @@
 use ndarray::prelude::*;
+use ndarray_rand::rand_distr::num_traits::Float;
 
 #[derive(Debug)]
 pub struct DistanceMetrics {
     mean: f64,
     max: f64,
     min: f64,
+    std_dev: f64,
 }
 
 impl DistanceMetrics {
@@ -28,6 +30,20 @@ impl DistanceMetrics {
             mean,
             max: y_delta[y_delta.len() - 1],
             min: y_delta[0],
+            std_dev: standard_deviation(&y_delta, mean),
         }
     }
+}
+
+fn standard_deviation(data: &Vec<f64>, mean: f64) -> f64 {
+    let variance = data
+        .iter()
+        .map(|x| {
+            let diff = mean - *x;
+            diff * diff
+        })
+        .sum::<f64>()
+        / data.len() as f64;
+
+    variance.sqrt()
 }

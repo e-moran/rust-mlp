@@ -49,11 +49,19 @@ pub enum Activation {
     Relu,
 }
 
+#[allow(dead_code)]
+#[derive(Debug)]
+pub enum OptimizationAlgorithm {
+    Batch,
+    Stochastic,
+}
+
 #[derive(Debug)]
 pub struct NeuralNetwork {
     w: Vec<Array2<f64>>,
     b: Vec<Array2<f64>>,
     activation: Activation,
+    optimization_algorithm: OptimizationAlgorithm,
     biases_enabled: bool,
 }
 
@@ -61,6 +69,7 @@ impl NeuralNetwork {
     pub fn new(
         layers: Vec<usize>,
         activation: Activation,
+        optimization_algorithm: OptimizationAlgorithm,
         weights_range: (f64, f64),
         biases_enabled: bool,
     ) -> NeuralNetwork {
@@ -77,11 +86,52 @@ impl NeuralNetwork {
                 .map(|x| Array2::zeros((*x, 1)))
                 .collect(),
             activation,
+            optimization_algorithm,
             biases_enabled,
         }
     }
 
     pub fn fit(
+        &mut self,
+        x: &ArrayView2<f64>,
+        y: &ArrayView2<f64>,
+        learning_rate: f64,
+        iterations: i64,
+    ) -> Option<Array2<f64>> {
+        match self.optimization_algorithm {
+            OptimizationAlgorithm::Batch => self.fit_batch(x, y, learning_rate, iterations),
+            OptimizationAlgorithm::Stochastic => {
+                self.fit_stochastic(x, y, learning_rate, iterations)
+            }
+        }
+    }
+
+    pub fn fit_stochastic(
+        &mut self,
+        x: &ArrayView2<f64>,
+        y: &ArrayView2<f64>,
+        learning_rate: f64,
+        iterations: i64,
+    ) -> Option<Array2<f64>> {
+        let mut pb = ProgressBar::new((iterations * x.ncols() as i64) as u64);
+        pb.format("╢▌▌░╟");
+
+        let mut out: Option<Array2<f64>> = None;
+        for _ in 0..iterations {
+            for (sample_x, sample_y) in x.axis_iter(Axis(1)).zip(y.axis_iter(Axis(1))) {
+                pb.inc();
+                let (y_hat, caches) = self.model_forward(&sample_x.insert_axis(Axis(1)));
+                let gradients =
+                    self.model_backward(&y_hat.view(), &sample_y.insert_axis(Axis(1)), caches);
+                self.update_parameters(gradients, learning_rate);
+                out = Some(y_hat);
+            }
+        }
+        pb.finish_println("Finished training.\n");
+        out
+    }
+
+    pub fn fit_batch(
         &mut self,
         x: &ArrayView2<f64>,
         y: &ArrayView2<f64>,

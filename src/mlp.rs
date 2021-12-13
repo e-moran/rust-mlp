@@ -1,10 +1,11 @@
-use std::ops::Div;
+use std::{fs, ops::Div};
 
 use ndarray::prelude::*;
 use ndarray_rand::rand_distr::num_traits::Pow;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
 use pbr::ProgressBar;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 struct LinearCache {
@@ -42,7 +43,7 @@ impl Gradient {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum Activation {
     Sigmoid,
     Tanh,
@@ -50,14 +51,14 @@ pub enum Activation {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum OptimizationAlgorithm {
     Batch,
-    Stochastic,
+    Stochastic(f64),
 }
 
-#[derive(Debug)]
-pub struct NeuralNetwork {
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MLP {
     w: Vec<Array2<f64>>,
     b: Vec<Array2<f64>>,
     activation: Activation,
@@ -65,15 +66,15 @@ pub struct NeuralNetwork {
     biases_enabled: bool,
 }
 
-impl NeuralNetwork {
+impl MLP {
     pub fn new(
         layers: Vec<usize>,
         activation: Activation,
         optimization_algorithm: OptimizationAlgorithm,
         weights_range: (f64, f64),
         biases_enabled: bool,
-    ) -> NeuralNetwork {
-        NeuralNetwork {
+    ) -> MLP {
+        MLP {
             w: layers
                 .iter()
                 .enumerate()
@@ -91,6 +92,20 @@ impl NeuralNetwork {
         }
     }
 
+    pub fn from_file(filename: &str) -> Result<MLP, String> {
+        match fs::read_to_string(filename) {
+            Ok(t) => serde_json::from_str(&t).map_err(|e| e.to_string()),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    pub fn save_to_file(&self, filename: &str) -> Result<(), String> {
+        match serde_json::to_string(self) {
+            Ok(t) => fs::write(filename, t).map_err(|e| e.to_string()),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
     pub fn fit(
         &mut self,
         x: &ArrayView2<f64>,
@@ -100,17 +115,18 @@ impl NeuralNetwork {
     ) -> Option<Array2<f64>> {
         match self.optimization_algorithm {
             OptimizationAlgorithm::Batch => self.fit_batch(x, y, learning_rate, iterations),
-            OptimizationAlgorithm::Stochastic => {
-                self.fit_stochastic(x, y, learning_rate, iterations)
+            OptimizationAlgorithm::Stochastic(decay) => {
+                self.fit_stochastic(x, y, learning_rate, decay, iterations)
             }
         }
     }
 
-    pub fn fit_stochastic(
+    fn fit_stochastic(
         &mut self,
         x: &ArrayView2<f64>,
         y: &ArrayView2<f64>,
-        learning_rate: f64,
+        mut learning_rate: f64,
+        learning_rate_decay: f64,
         iterations: i64,
     ) -> Option<Array2<f64>> {
         let mut pb = ProgressBar::new((iterations * x.ncols() as i64) as u64);
@@ -126,12 +142,13 @@ impl NeuralNetwork {
                 self.update_parameters(gradients, learning_rate);
                 out = Some(y_hat);
             }
+            learning_rate *= learning_rate_decay;
         }
         pb.finish_println("Finished training.\n");
         out
     }
 
-    pub fn fit_batch(
+    fn fit_batch(
         &mut self,
         x: &ArrayView2<f64>,
         y: &ArrayView2<f64>,

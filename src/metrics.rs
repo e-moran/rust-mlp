@@ -46,3 +46,28 @@ fn standard_deviation(data: &Vec<f64>, mean: f64) -> f64 {
 
     variance.sqrt()
 }
+
+// XOR
+pub fn count_matched_letters(y: &ArrayView2<f64>, y_hat: &ArrayView2<f64>) -> u64 {
+    let mut matched: u64 = 0;
+    for (a, b) in y.axis_iter(Axis(1)).zip(y_hat.axis_iter(Axis(1))) {
+        if max_in_row(&a) == max_in_row(&b) {
+            matched += 1;
+        }
+    }
+
+    matched
+}
+
+fn max_in_row(row: &ArrayView1<f64>) -> usize {
+    let mut biggest: f64 = 0.;
+    let mut biggest_index: usize = 0;
+    for (i, x) in row.iter().enumerate() {
+        if x > &biggest {
+            biggest = *x;
+            biggest_index = i;
+        }
+    }
+
+    biggest_index
+}
